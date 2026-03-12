@@ -47,8 +47,8 @@
       "id": "wumpwump-dl@extension",
       "strict_min_version": "112.0",
       "data_collection_permissions": {
-        "is_exempt": true,
-        "description": "This extension does not collect or transmit any user data. All scraped data stays in local browser storage."
+        "required": ["none"],
+        "optional": []
       }
     }
   }
