@@ -22,6 +22,8 @@ Liberate your chats (Channels &amp; DMs) from a specific chat app, all within a 
 <details>
 <summary>Manual install (from source / releases)</summary>
 
+> These are unsigned and won't work on your browser unless you modify settings which **ARE NOT RECCOMENDED**.
+
 **Chrome / Chromium browsers:**
 1. Download the latest `wumpwump-dl-chrome-v*.zip` from [Releases](../../releases).
 2. Unzip the file.

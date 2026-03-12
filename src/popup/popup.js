@@ -93,7 +93,19 @@ function setScrollMode(mode) {
   saveSettings();
 }
 
-function setMediaMode(embed) {
+async function setMediaMode(embed) {
+  if (embed) {
+    // Request broad host permission for fetching third-party embed media
+    let granted;
+    if (typeof browser !== 'undefined') {
+      granted = await browser.permissions.request({ origins: ['<all_urls>'] });
+    } else {
+      granted = await new Promise((resolve) =>
+        chrome.permissions.request({ origins: ['<all_urls>'] }, resolve)
+      );
+    }
+    if (!granted) return; // user denied, stay on current mode
+  }
   embedMedia = embed;
   $('#mediaOff').className = 'toggle-btn' + (!embed ? ' active' : '');
   $('#mediaOn').className = 'toggle-btn' + (embed ? ' active' : '');

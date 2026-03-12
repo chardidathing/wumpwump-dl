@@ -9,6 +9,10 @@
     "downloads"
   ],
   "host_permissions": [
+    "https://cdn.discordapp.com/*",
+    "https://media.discordapp.net/*"
+  ],
+  "optional_host_permissions": [
     "<all_urls>"
   ],
   "background": {

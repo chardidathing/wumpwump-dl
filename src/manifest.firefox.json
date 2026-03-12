@@ -7,6 +7,10 @@
     "storage",
     "activeTab",
     "downloads",
+    "https://cdn.discordapp.com/*",
+    "https://media.discordapp.net/*"
+  ],
+  "optional_permissions": [
     "<all_urls>"
   ],
   "background": {
@@ -41,7 +45,11 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "wumpwump-dl@extension",
-      "strict_min_version": "109.0"
+      "strict_min_version": "112.0",
+      "data_collection_permissions": {
+        "is_exempt": true,
+        "description": "This extension does not collect or transmit any user data. All scraped data stays in local browser storage."
+      }
     }
   }
 }

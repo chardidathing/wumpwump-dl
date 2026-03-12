@@ -42,7 +42,7 @@ async function build(target) {
   );
 
   // Copy static assets
-  for (const file of ['popup/popup.html', 'popup/exporter.html', 'popup/popup.css', 'popup/json_dl.svg', 'popup/html_dl.svg', 'popup/delete.svg', 'popup/github.svg', 'popup/kofi.svg', 'export/viewer.html']) {
+  for (const file of ['popup/popup.html', 'popup/exporter.html', 'popup/popup.css', 'popup/json_dl.svg', 'popup/html_dl.svg', 'popup/delete.svg', 'popup/github.svg', 'popup/kofi.svg']) {
     const src = resolve(__dirname, 'src', file);
     const dest = resolve(outdir, file);
     mkdirSync(dirname(dest), { recursive: true });
