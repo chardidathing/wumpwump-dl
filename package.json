@@ -1,0 +1,20 @@
+{
+  "name": "wumpwump-dl",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Liberate your chats (Channels & DMs) from a specific chat app, all within a lil' browser extension. :)",
+  "scripts": {
+    "dev": "node build.js --watch",
+    "build": "node build.js --all",
+    "build:chrome": "node build.js --chrome",
+    "build:firefox": "node build.js --firefox"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "webextension-polyfill": "^0.12.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>wumpwump-dl</h1>
+    <div id="status" class="status">Checking...</div>
+    <div id="channels" class="channels"></div>
+    <div id="dmHint" class="dm-hint" style="display:none">Open the user profile sidebar before scraping to capture their username and user ID.</div>
+    <div id="actions" class="actions" style="display:none">
+      <button id="scrapeBtn" class="btn primary">Scrape Current Channel</button>
+      <button id="stopBtn" class="btn danger" style="display:none">Stop Scraping</button>
+      <button id="settingsToggle" class="btn settings-toggle">Settings</button>
+    </div>
+    <div id="settings" class="settings" style="display:none">
+      <div class="setting-group">
+        <label>Scroll mode</label>
+        <div class="toggle-row">
+          <button id="scrollModeAuto" class="toggle-btn active">Auto</button>
+          <button id="scrollModeManual" class="toggle-btn">Manual</button>
+        </div>
+        <div class="setting-hint" id="scrollModeHint">Scrolls automatically at a natural pace.</div>
+      </div>
+      <div id="autoScrollSettings">
+        <div class="setting-group">
+          <label>Scroll distance (px)</label>
+          <div class="range-inputs">
+            <input type="number" id="scrollDistMin" value="300" min="50" max="2000" step="50">
+            <span class="range-sep">to</span>
+            <input type="number" id="scrollDistMax" value="700" min="50" max="2000" step="50">
+          </div>
+        </div>
+        <div class="setting-group">
+          <label>Scroll duration (ms)</label>
+          <div class="range-inputs">
+            <input type="number" id="scrollDurMin" value="400" min="100" max="3000" step="50">
+            <span class="range-sep">to</span>
+            <input type="number" id="scrollDurMax" value="900" min="100" max="3000" step="50">
+          </div>
+        </div>
+        <div class="setting-group">
+          <label>Pause between scrolls (ms)</label>
+          <div class="range-inputs">
+            <input type="number" id="pauseMin" value="800" min="200" max="10000" step="100">
+            <span class="range-sep">to</span>
+            <input type="number" id="pauseMax" value="2000" min="200" max="10000" step="100">
+          </div>
+        </div>
+      </div>
+      <div class="setting-group">
+        <label>Export media</label>
+        <div class="toggle-row">
+          <button id="mediaOff" class="toggle-btn">Links only</button>
+          <button id="mediaOn" class="toggle-btn active">Embed media</button>
+        </div>
+        <div class="setting-hint" id="mediaHint">Media files will be downloaded and bundled into a ZIP.</div>
+      </div>
+    </div>
+    <div id="reloadPrompt" class="reload-prompt" style="display:none">
+      <p>Lost connection to Discord tab. Reload the page to reconnect.</p>
+      <button id="reloadBtn" class="btn primary">Reload Page</button>
+    </div>
+    <div id="exportStatus" class="export-status" style="display:none">
+      <span id="exportStatusText">Exporting...</span>
+    </div>
+    <div id="progress" class="progress" style="display:none">
+      <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+      <span id="progressText">0 messages</span>
+    </div>
+    <div class="donate">
+      <div class="donate-label">Support development:</div>
+      <div class="donate-links">
+        <a href="https://github.com/sponsors/chardidathing" target="_blank" rel="noopener" class="donate-link"><img src="github.svg" alt="GitHub" class="donate-icon">GitHub Sponsors</a>
+        <span class="donate-sep">&middot;</span>
+        <a href="https://ko-fi.com/supportchardidathing" target="_blank" rel="noopener" class="donate-link"><img src="kofi.svg" alt="Ko-fi" class="donate-icon donate-icon-kofi">Ko-fi</a>
+      </div>
+      <div class="donate-links">
+        <a href="https://github.com/chardidathing/wumpwump-dl" target="_blank" rel="noopener" class="donate-link">⭐ Star on GitHub</a>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

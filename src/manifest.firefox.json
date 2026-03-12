@@ -1,0 +1,47 @@
+{
+  "manifest_version": 2,
+  "name": "wumpwump-dl",
+  "version": "0.1.0",
+  "description": "Liberate your chats (Channels & DMs) from a specific chat app, all within a lil' browser extension. :)",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "downloads",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background/worker.js"],
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://discord.com/*",
+        "https://*.discord.com/*"
+      ],
+      "js": [
+        "content/scraper.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wumpwump-dl@extension",
+      "strict_min_version": "109.0"
+    }
+  }
+}

@@ -1,0 +1,62 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run build -- --all
+
+      - name: Read version from manifest
+        id: version
+        run: echo "version=$(jq -r .version src/manifest.chrome.json)" >> "$GITHUB_OUTPUT"
+
+      # Chrome: a .zip that can be loaded as an unpacked extension or uploaded to CWS
+      - name: Package Chrome extension
+        env:
+          EXT_VERSION: ${{ steps.version.outputs.version }}
+        run: cd build/chrome && zip -r "../../wumpwump-dl-chrome-v${EXT_VERSION}.zip" .
+
+      # Firefox: an .xpi that can be installed directly in about:addons
+      - name: Package Firefox extension
+        env:
+          EXT_VERSION: ${{ steps.version.outputs.version }}
+        run: cd build/firefox && zip -r "../../wumpwump-dl-firefox-v${EXT_VERSION}.xpi" .
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-packages
+          path: |
+            wumpwump-dl-chrome-v${{ steps.version.outputs.version }}.zip
+            wumpwump-dl-firefox-v${{ steps.version.outputs.version }}.xpi
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            wumpwump-dl-chrome-v${{ steps.version.outputs.version }}.zip
+            wumpwump-dl-firefox-v${{ steps.version.outputs.version }}.xpi
