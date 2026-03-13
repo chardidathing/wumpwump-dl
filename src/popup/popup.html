@@ -21,28 +21,31 @@
         <div class="toggle-row">
           <button id="scrollModeAuto" class="toggle-btn active">Auto</button>
           <button id="scrollModeManual" class="toggle-btn">Manual</button>
+          <button id="scrollModeApi" class="toggle-btn">API</button>
         </div>
         <div class="setting-hint" id="scrollModeHint">Scrolls automatically at a natural pace.</div>
       </div>
-      <div id="autoScrollSettings">
-        <div class="setting-group">
-          <label>Scroll distance (px)</label>
-          <div class="range-inputs">
-            <input type="number" id="scrollDistMin" value="300" min="50" max="2000" step="50">
-            <span class="range-sep">to</span>
-            <input type="number" id="scrollDistMax" value="700" min="50" max="2000" step="50">
+      <div id="autoScrollSettings" style="display:none">
+        <div id="scrollOnlySettings">
+          <div class="setting-group">
+            <label>Scroll distance (px)</label>
+            <div class="range-inputs">
+              <input type="number" id="scrollDistMin" value="300" min="50" max="2000" step="50">
+              <span class="range-sep">to</span>
+              <input type="number" id="scrollDistMax" value="700" min="50" max="2000" step="50">
+            </div>
+          </div>
+          <div class="setting-group">
+            <label>Scroll duration (ms)</label>
+            <div class="range-inputs">
+              <input type="number" id="scrollDurMin" value="400" min="100" max="3000" step="50">
+              <span class="range-sep">to</span>
+              <input type="number" id="scrollDurMax" value="900" min="100" max="3000" step="50">
+            </div>
           </div>
         </div>
         <div class="setting-group">
-          <label>Scroll duration (ms)</label>
-          <div class="range-inputs">
-            <input type="number" id="scrollDurMin" value="400" min="100" max="3000" step="50">
-            <span class="range-sep">to</span>
-            <input type="number" id="scrollDurMax" value="900" min="100" max="3000" step="50">
-          </div>
-        </div>
-        <div class="setting-group">
-          <label>Pause between scrolls (ms)</label>
+          <label id="pauseLabel">Pause between scrolls (ms)</label>
           <div class="range-inputs">
             <input type="number" id="pauseMin" value="800" min="200" max="10000" step="100">
             <span class="range-sep">to</span>

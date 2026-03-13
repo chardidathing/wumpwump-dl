@@ -58,6 +58,7 @@ async function init() {
   $('#settingsToggle').addEventListener('click', toggleSettings);
   $('#scrollModeAuto').addEventListener('click', () => setScrollMode('auto'));
   $('#scrollModeManual').addEventListener('click', () => setScrollMode('manual'));
+  $('#scrollModeApi').addEventListener('click', () => setScrollMode('api'));
   $('#mediaOff').addEventListener('click', () => setMediaMode(false));
   $('#mediaOn').addEventListener('click', () => setMediaMode(true));
 
@@ -67,7 +68,7 @@ async function init() {
 
   const listener = (message) => {
     if (message.type === 'SCRAPE_PROGRESS') {
-      showProgress(message.data.count, message.data.channelName);
+      showProgress(message.data.count, message.data.channelName, message.data.error);
     } else if (message.type === 'SCRAPE_DONE') {
       hideProgress();
       refreshStatus();
@@ -86,10 +87,18 @@ function setScrollMode(mode) {
   scrollMode = mode;
   $('#scrollModeAuto').className = 'toggle-btn' + (mode === 'auto' ? ' active' : '');
   $('#scrollModeManual').className = 'toggle-btn' + (mode === 'manual' ? ' active' : '');
-  $('#autoScrollSettings').style.display = mode === 'auto' ? 'block' : 'none';
-  $('#scrollModeHint').textContent = mode === 'auto'
-    ? 'Scrolls automatically at a natural pace.'
-    : 'You scroll manually. Messages are captured as they appear.';
+  $('#scrollModeApi').className = 'toggle-btn' + (mode === 'api' ? ' active' : '');
+  $('#autoScrollSettings').style.display = (mode === 'auto' || mode === 'api') ? 'block' : 'none';
+  $('#scrollOnlySettings').style.display = mode === 'auto' ? 'block' : 'none';
+  $('#pauseLabel').textContent = mode === 'api'
+    ? 'Delay between requests (ms)'
+    : 'Pause between scrolls (ms)';
+  const hints = {
+    auto: 'Scrolls automatically at a natural pace.',
+    manual: 'You scroll manually. Messages are captured as they appear.',
+    api: 'Fetches messages directly via Discord\'s API using captured headers. Fastest method, but also the most risky.',
+  };
+  $('#scrollModeHint').textContent = hints[mode] || '';
   saveSettings();
 }
 
@@ -319,9 +328,11 @@ function hideExportStatus() {
   $('#exportStatus').style.display = 'none';
 }
 
-function showProgress(count, channelName) {
+function showProgress(count, channelName, error) {
   $('#progress').style.display = 'block';
-  $('#progressText').textContent = count + ' messages' + (channelName ? ' from #' + channelName : '');
+  let text = count + ' messages' + (channelName ? ' from #' + channelName : '');
+  if (error) text += ' — ' + error;
+  $('#progressText').textContent = text;
 }
 
 function hideProgress() {

@@ -4,6 +4,7 @@
  */
 
 import { sendMessage, extractIds } from '../shared/utils.js';
+import { transformApiMessages } from './api-transform.js';
 
 // Selectors derived from live Discord DOM (as of 2025)
 const SEL = {
@@ -34,6 +35,244 @@ let isScrapingActive = false;
 let stopRequested = false;
 let scrapeConfig = { ...DEFAULT_CONFIG };
 let manualObserver = null;
+
+// ── Interceptor bridge ──────────────────────────────────────────────────
+// The MAIN world interceptor communicates via postMessage. The nonce is
+// written to a DOM attribute by the interceptor so we can pair up.
+
+const INTERCEPTOR_ATTR = 'data-__pm_session_id';
+let interceptorNonce = null;
+let interceptorLoaded = false;  // script injected and running
+let interceptorReady = false;   // headers actually captured
+const pendingReplays = new Map();
+
+function discoverInterceptor() {
+  if (interceptorLoaded) return;
+  const nonce = document.documentElement.getAttribute(INTERCEPTOR_ATTR);
+  if (nonce) {
+    interceptorNonce = nonce;
+    interceptorLoaded = true;
+    document.documentElement.removeAttribute(INTERCEPTOR_ATTR);
+    console.log('[ww] Interceptor loaded, nonce:', nonce);
+  }
+}
+
+// Listen for interceptor messages
+window.addEventListener('message', (event) => {
+  if (event.source !== window || !event.data) return;
+  const { type, nonce, requestId } = event.data;
+
+  if (type === 'ww_captured') {
+    interceptorNonce = nonce;
+    interceptorLoaded = true;
+    interceptorReady = true;
+    document.documentElement.removeAttribute(INTERCEPTOR_ATTR);
+    console.log('[ww] Headers captured by interceptor');
+  }
+
+  if (type === 'ww_status_result' && nonce === interceptorNonce) {
+    if (event.data.available) {
+      interceptorReady = true;
+      console.log('[ww] Interceptor confirmed headers available');
+    }
+  }
+
+  if (type === 'ww_replay_result' && nonce === interceptorNonce) {
+    const resolver = pendingReplays.get(requestId);
+    if (resolver) {
+      pendingReplays.delete(requestId);
+      resolver(event.data);
+    }
+  }
+});
+
+/** Ask the interceptor whether it has captured headers yet. */
+function probeInterceptorStatus() {
+  if (!interceptorLoaded || !interceptorNonce) return;
+  window.postMessage({ type: 'ww_status', nonce: interceptorNonce }, '*');
+}
+
+/**
+ * Request the interceptor to fetch a URL using captured Discord headers.
+ * Returns a promise that resolves with the replay result.
+ */
+function replayFetch(url) {
+  return new Promise((resolve, reject) => {
+    if (!interceptorLoaded || !interceptorNonce) {
+      reject(new Error('Interceptor not loaded'));
+      return;
+    }
+    const requestId = crypto.randomUUID();
+    const timeout = setTimeout(() => {
+      pendingReplays.delete(requestId);
+      reject(new Error('Replay request timed out'));
+    }, 30000);
+
+    pendingReplays.set(requestId, (result) => {
+      clearTimeout(timeout);
+      resolve(result);
+    });
+
+    window.postMessage({
+      type: 'ww_replay',
+      nonce: interceptorNonce,
+      requestId,
+      url,
+    }, '*');
+  });
+}
+
+/**
+ * Inject the interceptor script on Firefox (MV2) where world: "MAIN"
+ * is not available. On Chrome MV3, the interceptor is loaded via manifest.
+ */
+function injectInterceptorFirefox() {
+  if (typeof browser === 'undefined') return; // Chrome — handled by manifest
+
+  const DISGUISE_PREFIXES = [
+    'passwordmanager', 'adblock', 'darkmode', 'translate',
+    'accessibility', 'readability', 'privacy', 'spellcheck',
+    'autofill', 'clipboardhelper', 'grammarcheck', 'vaultbridge',
+    'keystorebridge', 'secureautofill', 'formprotect',
+  ];
+  const DISGUISE_SUFFIXES = [
+    'helper', 'bridge', 'loader', 'init', 'runtime',
+    'content', 'inject', 'module', 'core', 'session',
+  ];
+  const prefix = DISGUISE_PREFIXES[Math.floor(Math.random() * DISGUISE_PREFIXES.length)];
+  const suffix = DISGUISE_SUFFIXES[Math.floor(Math.random() * DISGUISE_SUFFIXES.length)];
+  const id = `${prefix}-${suffix}-${crypto.randomUUID()}`;
+
+  const url = browser.runtime.getURL('content/interceptor.js');
+  const script = document.createElement('script');
+  script.id = id;
+  script.src = url;
+  script.dataset.version =
+    '1.' + Math.floor(Math.random() * 9) + '.' + Math.floor(Math.random() * 30);
+  script.dataset.loaded = String(Date.now());
+
+  // Listen for CSP blocking the script load — fall back to wrappedJSObject
+  script.onerror = () => {
+    script.remove();
+    injectInterceptorFirefoxFallback();
+  };
+
+  (document.head || document.documentElement).prepend(script);
+}
+
+/**
+ * Fallback for Firefox when CSP blocks script injection.
+ * Uses Firefox's privileged wrappedJSObject API to patch fetch in the page context.
+ */
+function injectInterceptorFirefoxFallback() {
+  if (typeof wrappedJSObject === 'undefined' || typeof exportFunction === 'undefined') return;
+
+  const NONCE = crypto.randomUUID();
+  document.documentElement.setAttribute('data-__pm_session_id', NONCE);
+
+  const pageWindow = window.wrappedJSObject;
+  const origFetch = pageWindow.fetch;
+
+  // Store captured headers in a page-world variable
+  const stateKey = '_pm_' + NONCE.slice(0, 8);
+  pageWindow[stateKey] = cloneInto({ headers: null }, pageWindow);
+
+  pageWindow.fetch = exportFunction(async function (input, init) {
+    const response = await origFetch.apply(this, arguments);
+
+    try {
+      const url = typeof input === 'string'
+        ? input
+        : (input instanceof Request ? input.url : String(input));
+
+      if (url.includes('/api/v') && !pageWindow[stateKey].headers) {
+        const headers = {};
+        if (init && init.headers) {
+          for (const [key, value] of new Headers(init.headers)) {
+            headers[key] = value;
+          }
+        } else if (input instanceof Request) {
+          for (const [key, value] of input.headers) {
+            headers[key] = value;
+          }
+        }
+        if (headers['authorization']) {
+          pageWindow[stateKey].headers = cloneInto(headers, pageWindow);
+          window.postMessage({
+            type: 'ww_captured',
+            nonce: NONCE,
+            headerKeys: Object.keys(headers),
+          }, '*');
+        }
+      }
+    } catch {}
+
+    return response;
+  }, pageWindow);
+
+  // Listen for replay commands
+  window.addEventListener('message', async (event) => {
+    if (event.source !== window || !event.data) return;
+    if (event.data.nonce !== NONCE) return;
+
+    if (event.data.type === 'ww_replay') {
+      const { requestId, url } = event.data;
+      const headers = pageWindow[stateKey].headers;
+
+      if (!headers) {
+        window.postMessage({
+          type: 'ww_replay_result', nonce: NONCE, requestId,
+          error: 'No headers captured yet — browse Discord normally first.',
+        }, '*');
+        return;
+      }
+
+      try {
+        const resp = await origFetch.call(pageWindow, url, {
+          method: 'GET',
+          headers: Object.fromEntries(
+            Object.keys(headers).map((k) => [k, headers[k]])
+          ),
+          credentials: 'include',
+        });
+
+        if (resp.status === 429) {
+          const retryAfter = resp.headers.get('retry-after');
+          window.postMessage({
+            type: 'ww_replay_result', nonce: NONCE, requestId,
+            rateLimited: true,
+            retryAfter: retryAfter ? parseFloat(retryAfter) * 1000 : 2000,
+          }, '*');
+          return;
+        }
+
+        if (!resp.ok) {
+          window.postMessage({
+            type: 'ww_replay_result', nonce: NONCE, requestId,
+            error: 'HTTP ' + resp.status,
+          }, '*');
+          return;
+        }
+
+        const data = await resp.json();
+        window.postMessage({
+          type: 'ww_replay_result', nonce: NONCE, requestId,
+          data: JSON.parse(JSON.stringify(data)),
+        }, '*');
+      } catch (err) {
+        window.postMessage({
+          type: 'ww_replay_result', nonce: NONCE, requestId,
+          error: err.message || 'Fetch failed',
+        }, '*');
+      }
+    }
+  });
+}
+
+// Inject on Firefox at load time
+injectInterceptorFirefox();
+// Try to discover nonce (Chrome MAIN world script may have already run)
+discoverInterceptor();
 
 /**
  * Extract the @username handle from a username element.
@@ -110,18 +349,23 @@ async function startScrape() {
   const allMessages = [];
   const seen = new Set();
 
-  collectVisible(allMessages, seen);
+  // API mode skips DOM collection — it fetches everything from the REST API
+  if (scrapeConfig.scrollMode !== 'api') {
+    collectVisible(allMessages, seen);
 
-  if (allMessages.length > 0) {
-    sendMessage('STORE_MESSAGES', {
-      channelId: channelInfo.id,
-      channel: channelInfo,
-      messages: allMessages,
-    });
-    sendMessage('SCRAPE_PROGRESS', { count: allMessages.length, channelName: channelInfo.name });
+    if (allMessages.length > 0) {
+      sendMessage('STORE_MESSAGES', {
+        channelId: channelInfo.id,
+        channel: channelInfo,
+        messages: allMessages,
+      });
+      sendMessage('SCRAPE_PROGRESS', { count: allMessages.length, channelName: channelInfo.name });
+    }
   }
 
-  if (scrapeConfig.scrollMode === 'manual') {
+  if (scrapeConfig.scrollMode === 'api') {
+    await apiScrape(channelInfo, allMessages, seen);
+  } else if (scrapeConfig.scrollMode === 'manual') {
     await manualScrape(channelInfo, allMessages, seen);
   } else {
     const scrollContainer = findScrollContainer();
@@ -260,6 +504,152 @@ async function scrollAndCollect(scroller, channelInfo, allMessages, seen) {
       });
     }
     sendMessage('SCRAPE_PROGRESS', { count: allMessages.length, channelName: channelInfo.name });
+  }
+}
+
+/**
+ * API scrape mode: uses the network interceptor to fetch messages directly
+ * from Discord's REST API with captured headers. Much faster than DOM scraping —
+ * gets 100 messages per request instead of ~15 visible in the viewport.
+ */
+async function apiScrape(channelInfo, allMessages, seen) {
+  // Step 1: Wait for the interceptor script to load
+  if (!interceptorLoaded) {
+    discoverInterceptor();
+    console.log('[ww] Waiting for interceptor to load...');
+    sendMessage('SCRAPE_PROGRESS', {
+      count: 0,
+      channelName: channelInfo.name,
+      error: 'Waiting for interceptor to load...',
+    });
+    for (let i = 0; i < 30 && !interceptorLoaded; i++) {
+      await sleep(200);
+      discoverInterceptor();
+      if (stopRequested) return;
+    }
+    if (!interceptorLoaded) {
+      console.warn('[ww] Interceptor never loaded. Attr:', document.documentElement.getAttribute(INTERCEPTOR_ATTR));
+      sendMessage('SCRAPE_PROGRESS', {
+        count: 0,
+        channelName: channelInfo.name,
+        error: 'Interceptor failed to load — try reloading the page.',
+      });
+      return;
+    }
+  }
+
+  // Step 2: Wait for headers to be captured (needs at least one Discord API call)
+  if (!interceptorReady) {
+    console.log('[ww] Interceptor loaded but no headers yet, probing...');
+    sendMessage('SCRAPE_PROGRESS', {
+      count: 0,
+      channelName: channelInfo.name,
+      error: 'Waiting for Discord to make an API call (try switching channels)...',
+    });
+    // Probe repeatedly — Discord makes background API calls (typing, presence, etc.)
+    for (let i = 0; i < 75 && !interceptorReady; i++) {
+      probeInterceptorStatus();
+      await sleep(200);
+      if (stopRequested) return;
+    }
+    if (!interceptorReady) {
+      console.warn('[ww] No headers captured after 15s');
+      sendMessage('SCRAPE_PROGRESS', {
+        count: 0,
+        channelName: channelInfo.name,
+        error: 'No API headers captured — switch channels or scroll to trigger a Discord API call, then retry.',
+      });
+      return;
+    }
+  }
+  console.log('[ww] Interceptor ready, starting API scrape for channel', channelInfo.id);
+
+  const channelId = channelInfo.id;
+  let beforeId = null;
+  let emptyStreak = 0;
+
+  while (!stopRequested) {
+    // Build the API URL
+    let url = `/api/v9/channels/${channelId}/messages?limit=100`;
+    if (beforeId) url += `&before=${beforeId}`;
+
+    console.log('[ww] Fetching:', url);
+    let result;
+    try {
+      result = await replayFetch(url);
+    } catch (err) {
+      console.error('[ww] replayFetch threw:', err);
+      sendMessage('SCRAPE_PROGRESS', {
+        count: allMessages.length,
+        channelName: channelInfo.name,
+        error: err.message,
+      });
+      break;
+    }
+
+    if (result.error) {
+      console.error('[ww] API error:', result.error);
+      sendMessage('SCRAPE_PROGRESS', {
+        count: allMessages.length,
+        channelName: channelInfo.name,
+        error: result.error,
+      });
+      break;
+    }
+
+    if (result.rateLimited) {
+      const wait = result.retryAfter || 2000;
+      console.log('[ww] Rate limited, waiting', wait, 'ms');
+      await sleep(wait + randInt(500, 1500));
+      continue;
+    }
+
+    if (!result.data || !Array.isArray(result.data) || result.data.length === 0) {
+      emptyStreak++;
+      if (emptyStreak >= 2) break; // truly at the top of history
+      await sleep(1000);
+      continue;
+    }
+    emptyStreak = 0;
+
+    console.log('[ww] Got', result.data.length, 'messages from API');
+
+    // Transform API messages to internal format
+    const transformed = transformApiMessages(result.data);
+    let newCount = 0;
+    for (const msg of transformed) {
+      if (!seen.has(msg.id)) {
+        seen.add(msg.id);
+        allMessages.push(msg);
+        newCount++;
+      }
+    }
+
+    // Store in background — send all transformed messages; storage deduplicates via put()
+    if (newCount > 0) {
+      sendMessage('STORE_MESSAGES', {
+        channelId: channelInfo.id,
+        channel: channelInfo,
+        messages: transformed,
+      });
+    }
+    sendMessage('SCRAPE_PROGRESS', {
+      count: allMessages.length,
+      channelName: channelInfo.name,
+    });
+
+    // Set cursor to oldest message in this batch (API returns newest-first)
+    const oldest = result.data[result.data.length - 1];
+    if (oldest) {
+      beforeId = oldest.id;
+    }
+
+    // Throttle: randomized delay to look natural
+    const pause = randInt(
+      scrapeConfig.pauseBetween[0],
+      scrapeConfig.pauseBetween[1]
+    );
+    await sleep(pause);
   }
 }
 

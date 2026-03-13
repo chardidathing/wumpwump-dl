@@ -26,6 +26,17 @@
         "https://*.discord.com/*"
       ],
       "js": [
+        "content/interceptor.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://discord.com/*",
+        "https://*.discord.com/*"
+      ],
+      "js": [
         "content/scraper.js"
       ],
       "run_at": "document_idle"

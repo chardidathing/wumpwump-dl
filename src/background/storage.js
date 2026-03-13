@@ -19,8 +19,16 @@ function openDb() {
         db.createObjectStore(CHANNELS_STORE, { keyPath: 'id' });
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const db = req.result;
+      // Reset cache if the browser closes the connection (common in MV3 workers)
+      db.onclose = () => { dbPromise = null; };
+      resolve(db);
+    };
+    req.onerror = () => {
+      dbPromise = null;
+      reject(req.error);
+    };
   });
   return dbPromise;
 }

@@ -42,6 +42,9 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "web_accessible_resources": [
+    "content/interceptor.js"
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "wumpwump-dl@extension",

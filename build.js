@@ -12,6 +12,7 @@ if (args.includes('--all') || args.includes('--firefox')) targets.push('firefox'
 if (targets.length === 0) targets.push('chrome'); // default
 
 const entryPoints = [
+  'src/content/interceptor.js',
   'src/content/scraper.js',
   'src/background/worker.js',
   'src/popup/popup.js',
