@@ -29,15 +29,23 @@ async function runExport() {
     const result = await prepareExport();
     if (!result) return;
 
-    const { errors, partNumber } = await downloadMediaIncrementally(result.mediaUrls);
+    const { errors, downloadedMediaUrls } = await downloadMediaIncrementally(result.mediaUrls);
+    const builtExport = await buildExport(downloadedMediaUrls);
+    if (!builtExport) return;
 
     // Add the export file to the last (or only) ZIP
     showStatus('Building ZIP...');
     const exportFilename = format === 'json' ? 'export.json' : 'export.html';
     const encoder = new TextEncoder();
+    if (errors.length > 0) {
+      flushState.zipFiles.push({
+        name: `${channelName}/failed-downloads.json`,
+        data: encoder.encode(JSON.stringify(errors, null, 2)),
+      });
+    }
     flushState.zipFiles.push({
       name: `${channelName}/${exportFilename}`,
-      data: encoder.encode(result.exportContent),
+      data: encoder.encode(builtExport.exportContent),
     });
 
     triggerDownload(flushState.zipFiles, flushState.partNumber > 1 ? flushState.partNumber : 0);
@@ -92,7 +100,8 @@ function addFileAndFlush(name, data) {
 
 async function downloadMediaIncrementally(urls) {
   const errors = [];
-  if (!urls || urls.length === 0) return { errors };
+  const downloadedMediaUrls = [];
+  if (!urls || urls.length === 0) return { errors, downloadedMediaUrls };
 
   let completed = 0;
   const total = urls.length;
@@ -105,7 +114,7 @@ async function downloadMediaIncrementally(urls) {
       try {
         const result = await sendMsg('FETCH_URL', { url });
         if (!result || !result.ok) {
-          errors.push({ path, reason: result?.error || `HTTP ${result?.status || '?'}` });
+          errors.push({ url, path, reason: result?.error || `HTTP ${result?.status || '?'}` });
         } else {
           const binary = atob(result.data);
           const data = new Uint8Array(binary.length);
@@ -113,9 +122,10 @@ async function downloadMediaIncrementally(urls) {
             data[j] = binary.charCodeAt(j);
           }
           addFileAndFlush(path, data);
+          downloadedMediaUrls.push({ url, path });
         }
       } catch (err) {
-        errors.push({ path, reason: err.message || 'Network error' });
+        errors.push({ url, path, reason: err.message || 'Network error' });
       }
       completed++;
       showStatus(`Downloading media: ${completed}/${total}${errors.length > 0 ? ` (${errors.length} failed)` : ''}`);
@@ -128,7 +138,7 @@ async function downloadMediaIncrementally(urls) {
   }
   await Promise.all(workers);
 
-  return { errors };
+  return { errors, downloadedMediaUrls };
 }
 
 function triggerDownload(files, partNumber) {
@@ -145,6 +155,15 @@ function triggerDownload(files, partNumber) {
 
 async function prepareExport() {
   const result = await sendMsg('EXPORT_CHANNEL_PREPARE', { channelId, format });
+  if (!result || !result.success) {
+    showStatus(result?.error || 'Export failed.');
+    return null;
+  }
+  return result;
+}
+
+async function buildExport(downloadedMediaUrls) {
+  const result = await sendMsg('EXPORT_CHANNEL_BUILD', { channelId, format, downloadedMediaUrls });
   if (!result || !result.success) {
     showStatus(result?.error || 'Export failed.');
     return null;

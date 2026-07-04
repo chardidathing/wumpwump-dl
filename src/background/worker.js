@@ -192,15 +192,24 @@ onMessage(async (message, _sender) => {
         return { success: false, error: 'No messages found for this channel.' };
       }
 
-      // Build media URL list and rewrite message URLs to local paths
       const mediaUrls = collectMediaUrls(messages);
-      const mediaMap = new Map(mediaUrls.map((m) => [m.url, m.path]));
-      const rewritten = rewriteMediaUrls(messages, mediaMap);
 
+      return { success: true, mediaUrls };
+    }
+
+    case 'EXPORT_CHANNEL_BUILD': {
+      const channel = await getChannel(data.channelId);
+      const messages = await getMessagesByChannel(data.channelId);
+      if (!channel || messages.length === 0) {
+        return { success: false, error: 'No messages found for this channel.' };
+      }
+
+      const mediaMap = new Map((data.downloadedMediaUrls || []).map((m) => [m.url, m.path]));
+      const rewritten = rewriteMediaUrls(messages, mediaMap);
       const json = buildExportJson(channel, rewritten);
       const exportContent = data.format === 'json' ? json : buildExportHtml(json);
 
-      return { success: true, exportContent, mediaUrls };
+      return { success: true, exportContent };
     }
 
     case 'FETCH_URL': {

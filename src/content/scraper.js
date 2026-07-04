@@ -15,7 +15,14 @@ const SEL = {
   content: 'div[id^="message-content-"]',
   avatar: 'img[class*="avatar_"][class*="clickable_"]',
   accessories: 'div[id^="message-accessories-"]',
-  attachmentLink: 'a[class*="originalLink"]',
+  attachmentLink: [
+    'a[class*="originalLink"]',
+    'a[href*="cdn.discordapp.com/attachments/"]',
+    'a[href*="media.discordapp.net/attachments/"]',
+    'a[download]',
+    'a[class*="download"]',
+    'a[class*="fileName"]',
+  ].join(','),
   sticker: '[data-type="sticker"]',
   inlineEmbed: 'div[class*="inlineMediaEmbed"]',
   reaction: 'div[class*="reaction_"]',
@@ -349,12 +356,71 @@ function parseMessageElement(item, ids) {
 
 function parseAttachments(el) {
   const links = el.querySelectorAll(SEL.attachmentLink);
-  return Array.from(links).map((a) => {
+  const attachments = [];
+  const seen = new Set();
+
+  for (const a of links) {
     const href = a.getAttribute('href') || '';
-    const urlPath = href.split('?')[0];
-    const filename = urlPath.split('/').pop() || 'attachment';
-    return { url: href, filename, contentType: null, size: null };
-  });
+    if (!href || seen.has(href)) continue;
+    seen.add(href);
+
+    attachments.push({
+      url: href,
+      filename: extractAttachmentFilename(a, href),
+      contentType: null,
+      size: null,
+    });
+  }
+
+  return attachments;
+}
+
+function extractAttachmentFilename(anchor, href) {
+  const candidates = [
+    anchor.getAttribute('download'),
+    anchor.getAttribute('title'),
+    anchor.getAttribute('aria-label'),
+    anchor.textContent,
+    getFilenameFromUrl(href),
+  ];
+
+  for (const candidate of candidates) {
+    const filename = cleanFilenameCandidate(candidate);
+    if (filename) return filename;
+  }
+
+  return 'attachment';
+}
+
+function cleanFilenameCandidate(value) {
+  if (!value) return null;
+  const text = value.trim();
+  if (!text) return null;
+
+  const genericLabels = new Set(['download', 'open', 'original', 'view']);
+  if (genericLabels.has(text.toLowerCase())) return null;
+
+  return text;
+}
+
+function getFilenameFromUrl(href) {
+  try {
+    const url = new URL(href, window.location.href);
+    const lastSegment = url.pathname.split('/').filter(Boolean).pop();
+    return lastSegment ? safeDecodeURIComponent(lastSegment) : null;
+  } catch {
+    const path = href.split('?')[0];
+    const lastSegment = path.split('/').filter(Boolean).pop();
+    return lastSegment ? safeDecodeURIComponent(lastSegment) : null;
+  }
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function parseStickers(el) {
