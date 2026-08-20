@@ -17,6 +17,7 @@ const params = new URLSearchParams(window.location.search);
 const channelId = params.get('channelId');
 const channelName = params.get('channelName') || 'export';
 const format = params.get('format') || 'html';
+const includeEmbeds = params.get('includeEmbeds') !== 'false';
 
 runExport();
 
@@ -154,7 +155,7 @@ function triggerDownload(files, partNumber) {
 }
 
 async function prepareExport() {
-  const result = await sendMsg('EXPORT_CHANNEL_PREPARE', { channelId, format });
+  const result = await sendMsg('EXPORT_CHANNEL_PREPARE', { channelId, format, includeEmbeds });
   if (!result || !result.success) {
     showStatus(result?.error || 'Export failed.');
     return null;
@@ -163,7 +164,12 @@ async function prepareExport() {
 }
 
 async function buildExport(downloadedMediaUrls) {
-  const result = await sendMsg('EXPORT_CHANNEL_BUILD', { channelId, format, downloadedMediaUrls });
+  const result = await sendMsg('EXPORT_CHANNEL_BUILD', {
+    channelId,
+    format,
+    includeEmbeds,
+    downloadedMediaUrls,
+  });
   if (!result || !result.success) {
     showStatus(result?.error || 'Export failed.');
     return null;

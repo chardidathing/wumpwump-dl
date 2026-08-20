@@ -108,6 +108,11 @@ function rewriteMediaUrls(messages, mediaMap) {
   });
 }
 
+function filterMessageEmbeds(messages, includeEmbeds) {
+  if (includeEmbeds !== false) return messages;
+  return messages.map((msg) => ({ ...msg, embeds: [] }));
+}
+
 function guessExt(url, fallback) {
   const path = url.split('?')[0];
   const match = path.match(/\.(\w{2,5})$/);
@@ -171,7 +176,8 @@ onMessage(async (message, _sender) => {
       const channelName = sanitizeFilename(channel.name || 'export');
 
       broadcastProgress('Building export...');
-      const json = buildExportJson(channel, messages);
+      const exportMessages = filterMessageEmbeds(messages, data.includeEmbeds);
+      const json = buildExportJson(channel, exportMessages);
 
       if (data.format === 'json') {
         const blob = new Blob([json], { type: 'application/json' });
@@ -192,7 +198,8 @@ onMessage(async (message, _sender) => {
         return { success: false, error: 'No messages found for this channel.' };
       }
 
-      const mediaUrls = collectMediaUrls(messages);
+      const exportMessages = filterMessageEmbeds(messages, data.includeEmbeds);
+      const mediaUrls = collectMediaUrls(exportMessages);
 
       return { success: true, mediaUrls };
     }
@@ -204,8 +211,9 @@ onMessage(async (message, _sender) => {
         return { success: false, error: 'No messages found for this channel.' };
       }
 
+      const exportMessages = filterMessageEmbeds(messages, data.includeEmbeds);
       const mediaMap = new Map((data.downloadedMediaUrls || []).map((m) => [m.url, m.path]));
-      const rewritten = rewriteMediaUrls(messages, mediaMap);
+      const rewritten = rewriteMediaUrls(exportMessages, mediaMap);
       const json = buildExportJson(channel, rewritten);
       const exportContent = data.format === 'json' ? json : buildExportHtml(json);
 

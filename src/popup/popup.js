@@ -27,6 +27,7 @@ const $ = (sel) => document.querySelector(sel);
 let currentTabId = null;
 let scrollMode = 'auto'; // 'auto' or 'manual'
 let embedMedia = true;
+let includeEmbeds = true;
 
 async function init() {
   const queryTabs = typeof browser !== 'undefined' ? browser.tabs.query : chrome.tabs.query;
@@ -60,6 +61,8 @@ async function init() {
   $('#scrollModeManual').addEventListener('click', () => setScrollMode('manual'));
   $('#mediaOff').addEventListener('click', () => setMediaMode(false));
   $('#mediaOn').addEventListener('click', () => setMediaMode(true));
+  $('#embedsOff').addEventListener('click', () => setEmbedMode(false));
+  $('#embedsOn').addEventListener('click', () => setEmbedMode(true));
 
   for (const input of document.querySelectorAll('.settings input')) {
     input.addEventListener('change', saveSettings);
@@ -115,6 +118,16 @@ async function setMediaMode(embed) {
   saveSettings();
 }
 
+function setEmbedMode(include) {
+  includeEmbeds = include;
+  $('#embedsOff').className = 'toggle-btn' + (!include ? ' active' : '');
+  $('#embedsOn').className = 'toggle-btn' + (include ? ' active' : '');
+  $('#embedsHint').textContent = include
+    ? 'Discord embeds will be included in the export.'
+    : 'Discord embeds and their media will be excluded from the export.';
+  saveSettings();
+}
+
 function toggleSettings() {
   const el = $('#settings');
   const visible = el.style.display !== 'none';
@@ -143,6 +156,7 @@ function getConfigFromInputs() {
 function saveSettings() {
   const config = getConfigFromInputs();
   config.embedMedia = embedMedia;
+  config.includeEmbeds = includeEmbeds;
   const storage = typeof browser !== 'undefined' ? browser.storage : chrome.storage;
   storage.local.set({ scrapeConfig: config });
 }
@@ -172,6 +186,7 @@ async function loadSettings() {
       $('#pauseMax').value = c.pauseBetween[1];
     }
     if (c.embedMedia !== undefined) setMediaMode(c.embedMedia);
+    if (c.includeEmbeds !== undefined) setEmbedMode(c.includeEmbeds);
   }
 }
 
@@ -296,13 +311,18 @@ async function exportChannel(channelId, channelName, format) {
     // when the file picker opens, killing the script.
     const exportUrl = (typeof browser !== 'undefined' ? browser : chrome)
       .runtime.getURL('popup/exporter.html');
-    const params = new URLSearchParams({ channelId, channelName, format });
+    const params = new URLSearchParams({ channelId, channelName, format, includeEmbeds });
     window.open(`${exportUrl}?${params}`, '_blank');
     return;
   }
 
   showExportStatus('Preparing export...');
-  const exportResult = await sendMsg('EXPORT_CHANNEL', { channelId, embedMedia: false, format });
+  const exportResult = await sendMsg('EXPORT_CHANNEL', {
+    channelId,
+    embedMedia: false,
+    format,
+    includeEmbeds,
+  });
   hideExportStatus();
 
   if (!exportResult || !exportResult.success) {

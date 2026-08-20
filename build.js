@@ -1,5 +1,5 @@
 import * as esbuild from 'esbuild';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -21,6 +21,7 @@ const entryPoints = [
 
 async function build(target) {
   const outdir = resolve(__dirname, `build/${target}`);
+  rmSync(outdir, { recursive: true, force: true });
   mkdirSync(outdir, { recursive: true });
 
   await esbuild.build({
