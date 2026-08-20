@@ -30,6 +30,18 @@ async function runExport() {
     const result = await prepareExport();
     if (!result) return;
 
+    if (!result.mediaUrls || result.mediaUrls.length === 0) {
+      showStatus('Building export...');
+      const builtExport = await buildExport([]);
+      if (!builtExport) return;
+
+      triggerExportDownload(builtExport.exportContent);
+      $('#exportStatus').style.display = 'none';
+      $('#doneMessage').style.display = 'block';
+      $('#doneDonate').style.display = 'block';
+      return;
+    }
+
     const { errors, downloadedMediaUrls } = await downloadMediaIncrementally(result.mediaUrls);
     const builtExport = await buildExport(downloadedMediaUrls);
     if (!builtExport) return;
@@ -150,6 +162,17 @@ function triggerDownload(files, partNumber) {
   a.download = partNumber > 0
     ? `${channelName}_part${partNumber}.zip`
     : `${channelName}.zip`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function triggerExportDownload(content) {
+  const isJson = format === 'json';
+  const blob = new Blob([content], { type: isJson ? 'application/json' : 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${channelName}.${isJson ? 'json' : 'html'}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
