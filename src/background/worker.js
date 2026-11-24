@@ -26,16 +26,15 @@ function broadcastProgress(text) {
 
 /** Trigger a file download from the background using the downloads API. */
 async function triggerDownload(blob, filename) {
-  const isFirefox = typeof browser !== 'undefined';
-  const api = isFirefox ? browser.downloads : chrome.downloads;
+  const api = typeof browser !== 'undefined' ? browser.downloads : chrome.downloads;
 
-  if (isFirefox) {
-    // Firefox background scripts support createObjectURL; data: URLs are blocked
+  if (typeof URL.createObjectURL === 'function') {
+    // Background pages (e.g. Firefox) support createObjectURL; data: URLs are blocked there
     const url = URL.createObjectURL(blob);
     api.download({ url, filename, saveAs: true });
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   } else {
-    // Chrome MV3 service workers lack createObjectURL; use data: URL
+    // MV3 service workers (e.g. Chrome) lack createObjectURL; use data: URL
     const buffer = await blob.arrayBuffer();
     const bytes = new Uint8Array(buffer);
     let binary = '';
